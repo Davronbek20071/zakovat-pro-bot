@@ -1,12 +1,12 @@
 [
   {
-    "savol": "O‘zbekiston poytaxti?",
-    "variantlar": ["Toshkent", "Samarqand", "Buxoro", "Andijon"],
+    "savol": "O'zbekiston poytaxti qaysi?",
+    "variantlar": ["Toshkent", "Samarqand", "Buxoro", "Farg'ona"],
     "togri": "A"
   },
   {
-    "savol": "1 metrda nechta santimetr bor?",
-    "variantlar": ["10", "100", "1000", "10000"],
+    "savol": "2 + 2 nechchi?",
+    "variantlar": ["3", "4", "5", "6"],
     "togri": "B"
   }
 ]
