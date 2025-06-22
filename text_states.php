@@ -1,70 +1,75 @@
 <?php
-$state = getState($user_id);
+// text_states.php
 
-switch ($state) {
-    case "awaiting_savol":
-        saveJson($data_files['savol'], ["savol" => $text, "javob" => "pending"]);
-        saveState($user_id, "awaiting_savol_answer");
-        sendMessage($chat_id, "✅ Endi savolning to‘g‘ri javobini yozing:");
-        break;
+function loadJson($file) {
+    return file_exists($file) ? json_decode(file_get_contents($file), true) : [];
+}
 
-    case "awaiting_savol_answer":
-        $data = loadJson($data_files['savol']);
-        $data['javob'] = strtolower(trim($text));
-        saveJson($data_files['savol'], $data);
-        clearState($user_id);
-        sendMessage($chat_id, "✅ Savol saqlandi!");
-        break;
+function saveJson($file, $data) {
+    file_put_contents($file, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+}
 
-    case "awaiting_ilm":
-        saveJson($data_files['ilm'], ["text" => $text]);
-        clearState($user_id);
-        sendMessage($chat_id, "✅ Ilm saqlandi!");
-        break;
+if ($text == "/start") {
+    $buttons = [
+        [
+            ["text" => "🧪 Quiz"], ["text" => "🧠 Mantiq"]
+        ],
+        [
+            ["text" => "📚 Ilm"], ["text" => "📝 Kun so‘zi"]
+        ],
+        [
+            ["text" => "📌 Savol"]
+        ]
+    ];
+    sendMessage($chat_id, "Assalomu alaykum! \n<b>Zakovat Pro</b> botiga xush kelibsiz! Tanlang:", $buttons);
+    return;
+}
 
-    case "awaiting_kunsozi":
-        saveJson($data_files['kunsozi'], ["text" => $text]);
-        clearState($user_id);
-        sendMessage($chat_id, "✅ Kun so‘zi saqlandi!");
-        break;
+if ($text == "📚 Ilm") {
+    sendMessage($chat_id, "📚 Ilm menyusida hozircha yangi bilimlar tayyorlanmoqda.");
+    return;
+}
 
-    case "awaiting_mantiq":
-        saveJson($data_files['mantiq'], ["text" => $text]);
-        clearState($user_id);
-        sendMessage($chat_id, "✅ Mantiqiy topshiriq saqlandi!");
-        break;
+if ($text == "🧠 Mantiq") {
+    sendMessage($chat_id, "🧠 Mantiq mashqlari tez orada qo‘shiladi.");
+    return;
+}
 
-    case "awaiting_quiz_question":
-        $parts = explode("|", $text);
-        if (count($parts) != 6) {
-            sendMessage($chat_id, "❗ Noto‘g‘ri format. Qaytadan kiriting.");
-            break;
-        }
-        $question = trim($parts[0]);
-        $options = array_map('trim', array_slice($parts, 1, 4));
-        $correct = strtoupper(trim($parts[5]));
+if ($text == "📝 Kun so‘zi") {
+    sendMessage($chat_id, "📝 Bugungi kun so‘zi: <b>Mas’uliyat</b> — Harakatda baraka.");
+    return;
+}
 
-        $quiz = loadJson($data_files['quiz']);
-        $quiz[] = ["savol" => $question, "variantlar" => $options, "togri" => $correct];
-        saveJson($data_files['quiz'], $quiz);
-        clearState($user_id);
-        sendMessage($chat_id, "✅ Quiz savol saqlandi!");
-        break;
+if ($text == "📌 Savol") {
+    sendMessage($chat_id, "📌 Bugungi savol: Dunyodagi eng katta okean qaysi?\nA) Atlantika\nB) Hind\nC) Tinch\nD) Arktika");
+    return;
+}
 
-    case "awaiting_answer":
-        $data = loadJson($data_files['savol']);
-        $user_javob = strtolower(trim($text));
-        $togri = strtolower($data['javob']);
-        clearState($user_id);
-        if ($user_javob == $togri) {
-            sendMessage($chat_id, "✅ <b>To‘g‘ri!</b> Siz savolga to‘g‘ri javob berdingiz.");
-        } else {
-            sendMessage($chat_id, "❌ <b>Noto‘g‘ri.</b> To‘g‘ri javob: <b>$togri</b>");
-        }
-        break;
+if ($text == "🧪 Quiz") {
+    $all = loadJson("quiz.json");
+    shuffle($all);
+    $questions = array_slice($all, 0, 10);
 
-    case "awaiting_mantiq_answer":
-        clearState($user_id);
-        sendMessage($chat_id, "📌 Sizning javobingiz qabul qilindi. Tez orada baholanadi (yoki tekshiruvsiz). ✅");
-        break;
+    $session = [
+        "index" => 0,
+        "score" => 0,
+        "questions" => $questions
+    ];
+
+    saveJson("quiz_session_$user_id.json", $session);
+
+    $q = $questions[0];
+    $buttons = [
+        [
+            ["text" => "A) {$q['variantlar'][0]}", "callback_data" => "quiz_answer_A"],
+            ["text" => "B) {$q['variantlar'][1]}", "callback_data" => "quiz_answer_B"]
+        ],
+        [
+            ["text" => "C) {$q['variantlar'][2]}", "callback_data" => "quiz_answer_C"],
+            ["text" => "D) {$q['variantlar'][3]}", "callback_data" => "quiz_answer_D"]
+        ]
+    ];
+
+    sendMessage($chat_id, "🧪 <b>10 ta savoldan iborat quiz boshlandi!</b>\n\n❓ <b>Savol 1:</b>\n{$q['savol']}", $buttons);
+    return;
 }
