@@ -10,7 +10,7 @@ function saveJson($file, $data) {
 }
 
 function sendMessage($chat_id, $text, $buttons = null) {
-    $url = "https://api.telegram.org/bot" . getenv("8177096885:AAFugF6dh2YFcAfgdaRwBZCiIys6FqK8GoE") . "/sendMessage";
+    $url = "https://api.telegram.org/bot" . getenv("BOT_TOKEN") . "/sendMessage";
     $data = [
         'chat_id' => $chat_id,
         'text' => $text,
