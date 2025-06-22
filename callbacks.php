@@ -1,70 +1,73 @@
 <?php
-switch ($callback) {
-    case "bugungi_savol":
-        $data = loadJson($data_files['savol']);
-        if ($data) {
-            saveState($user_id, "awaiting_answer");
-            sendMessage($chat_id, "📌 <b>Savol:</b> {$data['savol']}\n\n✍️ Javobingizni yozing:");
-        } else {
-            sendMessage($chat_id, "⛔ Bugungi savol hali yuklanmagan.");
-        }
-        break;
 
-    case "mantiq":
-        $data = loadJson($data_files['mantiq']);
-        sendMessage($chat_id, "🧠 <b>Mantiqiy topshiriq:</b>\n{$data['text']}\n\n✍️ Javobingizni yozing:");
-        saveState($user_id, "awaiting_mantiq_answer");
-        break;
+// loadJson va saveJson funksiyalari kerak bo‘lsa shu yerga qo‘sh
+function loadJson($file) {
+    return file_exists($file) ? json_decode(file_get_contents($file), true) : [];
+}
 
-    case "ilm":
-        $data = loadJson($data_files['ilm']);
-        sendMessage($chat_id, "🧾 <b>1 daqiqa ilm:</b>\n{$data['text']}");
-        break;
+function saveJson($file, $data) {
+    file_put_contents($file, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+}
 
-    case "kunsozi":
-        $data = loadJson($data_files['kunsozi']);
-        sendMessage($chat_id, "💬 <b>Kun so‘zi:</b>\n{$data['text']}");
-        break;
+function sendMessage($chat_id, $text, $buttons = null) {
+    $url = "https://api.telegram.org/bot" . getenv("8177096885:AAFugF6dh2YFcAfgdaRwBZCiIys6FqK8GoE") . "/sendMessage";
+    $data = [
+        'chat_id' => $chat_id,
+        'text' => $text,
+        'parse_mode' => 'HTML'
+    ];
 
-    case "reyting":
-        sendMessage($chat_id, "📊 Reyting: Hozircha demo rejimda.");
-        break;
+    if ($buttons) {
+        $data['reply_markup'] = json_encode(['inline_keyboard' => $buttons]);
+    }
 
-    case "add_savol":
-        saveState($user_id, "awaiting_savol");
-        sendMessage($chat_id, "📝 Bugungi savolni yuboring:");
-        break;
+    file_get_contents($url . "?" . http_build_query($data));
+}
 
-    case "add_ilm":
-        saveState($user_id, "awaiting_ilm");
-        sendMessage($chat_id, "🧾 1 daqiqa ilm matnini yuboring:");
-        break;
+// ---------- Callback tugmalarni ishlov ----------
 
-    case "add_kunsozi":
-        saveState($user_id, "awaiting_kunsozi");
-        sendMessage($chat_id, "💬 Kun so‘zini yuboring:");
-        break;
+if (strpos($callback, "quiz_answer_") === 0) {
+    $variant = strtoupper(substr($callback, -1));
+    $session_file = "quiz_session_$user_id.json";
+    $session = loadJson($session_file);
 
-    case "add_mantiq":
-        saveState($user_id, "awaiting_mantiq");
-        sendMessage($chat_id, "🧠 Mantiqiy topshiriq matnini yuboring:");
-        break;
+    if (!isset($session["questions"])) {
+        sendMessage($chat_id, "⚠️ Quiz sessiyasi topilmadi. Iltimos, qaytadan boshlang.");
+        return;
+    }
 
-    case "add_quiz":
-        saveState($user_id, "awaiting_quiz_question");
-        sendMessage($chat_id, "🧪 Quiz savol matnini yuboring:\n\nFormat: savol | A | B | C | D | to‘g‘ri variant harfi\n\nMasalan:\nO‘zbekiston poytaxti? | Toshkent | Samarqand | Buxoro | Andijon | A");
-        break;
+    $index = $session["index"];
+    $questions = $session["questions"];
+    $correct = $questions[$index]['togri'];
 
-    case "start_quiz":
-        $quiz = loadJson($data_files['quiz']);
-        if (!$quiz || count($quiz) < 1) {
-            sendMessage($chat_id, "🧪 Hozircha quiz savollari mavjud emas.");
-        } else {
-            $shuffled = $quiz;
-            shuffle($shuffled);
-            $selected = array_slice($shuffled, 0, 10);
-            saveJson("quiz_session_$user_id.json", ["index" => 0, "score" => 0, "questions" => $selected]);
-            include "quiz_logic.php";
-        }
-        break;
+    if ($variant == $correct) {
+        $session['score']++;
+    }
+
+    $session['index']++;
+    saveJson($session_file, $session);
+
+    // QUIZ_LOGIC.PHP NI TO‘G‘RIDAN-TO‘G‘RI SHU YERGA QO‘SHAMIZ:
+    if ($session["index"] >= count($questions)) {
+        $score = $session["score"];
+        $foiz = round(($score / count($questions)) * 100);
+        unlink($session_file);
+        sendMessage($chat_id, "🧪 <b>Quiz yakuni:</b>\n✅ To‘g‘ri javoblar: <b>$score/10</b>\n📈 Natija: <b>$foiz%</b>");
+        return;
+    }
+
+    $q = $questions[$session["index"]];
+    $buttons = [
+        [
+            ["text" => "A) {$q['variantlar'][0]}", "callback_data" => "quiz_answer_A"],
+            ["text" => "B) {$q['variantlar'][1]}", "callback_data" => "quiz_answer_B"]
+        ],
+        [
+            ["text" => "C) {$q['variantlar'][2]}", "callback_data" => "quiz_answer_C"],
+            ["text" => "D) {$q['variantlar'][3]}", "callback_data" => "quiz_answer_D"]
+        ]
+    ];
+
+    sendMessage($chat_id, "❓ <b>Savol " . ($session["index"] + 1) . "/10:</b>\n{$q['savol']}", $buttons);
+    return;
 }
