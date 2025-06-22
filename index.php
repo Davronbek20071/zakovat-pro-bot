@@ -1,5 +1,5 @@
 <?php
-// text_states.php
+// callbacks.php
 
 function loadJson($file) {
     return file_exists($file) ? json_decode(file_get_contents($file), true) : [];
@@ -9,56 +9,39 @@ function saveJson($file, $data) {
     file_put_contents($file, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 }
 
-if ($text == "/start") {
-    $buttons = [
-        [
-            ["text" => "🧪 Quiz"], ["text" => "🧠 Mantiq"]
-        ],
-        [
-            ["text" => "📚 Ilm"], ["text" => "📝 Kun so‘zi"]
-        ],
-        [
-            ["text" => "📌 Savol"]
-        ]
-    ];
-    sendMessage($chat_id, "Assalomu alaykum! \n<b>Zakovat Pro</b> botiga xush kelibsiz! Tanlang:", $buttons);
-    return;
-}
+if (strpos($callback, "quiz_answer_") === 0) {
+    $variant = strtoupper(substr($callback, -1)); // A, B, C yoki D
+    $session_file = "quiz_session_$user_id.json";
+    $session = loadJson($session_file);
 
-if ($text == "📚 Ilm") {
-    sendMessage($chat_id, "📚 Ilm menyusida hozircha yangi bilimlar tayyorlanmoqda.");
-    return;
-}
+    if (!isset($session["questions"])) {
+        sendMessage($chat_id, "⚠️ Quiz sessiyasi topilmadi. Iltimos, qaytadan boshlang.");
+        return;
+    }
 
-if ($text == "🧠 Mantiq") {
-    sendMessage($chat_id, "🧠 Mantiq mashqlari tez orada qo‘shiladi.");
-    return;
-}
+    $index = $session["index"];
+    $questions = $session["questions"];
+    $correct = $questions[$index]['togri'];
 
-if ($text == "📝 Kun so‘zi") {
-    sendMessage($chat_id, "📝 Bugungi kun so‘zi: <b>Mas’uliyat</b> — Harakatda baraka.");
-    return;
-}
+    if ($variant == $correct) {
+        $session['score']++;
+    }
 
-if ($text == "📌 Savol") {
-    sendMessage($chat_id, "📌 Bugungi savol: Dunyodagi eng katta okean qaysi?\nA) Atlantika\nB) Hind\nC) Tinch\nD) Arktika");
-    return;
-}
+    $session['index']++;
+    saveJson($session_file, $session);
 
-if ($text == "🧪 Quiz") {
-    $all = loadJson("quiz.json");
-    shuffle($all);
-    $questions = array_slice($all, 0, 10);
+    // Keyingi savol yoki yakuniy natija
+    if ($session["index"] >= count($questions)) {
+        $score = $session["score"];
+        $foiz = round(($score / count($questions)) * 100);
+        unlink($session_file);
 
-    $session = [
-        "index" => 0,
-        "score" => 0,
-        "questions" => $questions
-    ];
+        sendMessage($chat_id, "✅ <b>Quiz yakuni:</b>\n🟢 To‘g‘ri javoblar: <b>$score/10</b>\n📊 Natija: <b>$foiz%</b>");
+        return;
+    }
 
-    saveJson("quiz_session_$user_id.json", $session);
-
-    $q = $questions[0];
+    // Keyingi savolni chiqarish
+    $q = $questions[$session["index"]];
     $buttons = [
         [
             ["text" => "A) {$q['variantlar'][0]}", "callback_data" => "quiz_answer_A"],
@@ -70,6 +53,6 @@ if ($text == "🧪 Quiz") {
         ]
     ];
 
-    sendMessage($chat_id, "🧪 <b>10 ta savoldan iborat quiz boshlandi!</b>\n\n❓ <b>Savol 1:</b>\n{$q['savol']}", $buttons);
+    sendMessage($chat_id, "❓ <b>Savol " . ($session["index"] + 1) . "/10:</b>\n{$q['savol']}", $buttons);
     return;
 }
