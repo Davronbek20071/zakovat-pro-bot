@@ -1,88 +1,75 @@
 <?php
-$token = "8177096885:AAFugF6dh2YFcAfgdaRwBZCiIys6FqK8GoE";
-$admin_id = "7342925788";
-
-$content = file_get_contents("php://input");
-$update = json_decode($content, true);
-
-$chat_id = $update["message"]["chat"]["id"] ?? $update["callback_query"]["message"]["chat"]["id"];
-$text = $update["message"]["text"] ?? null;
-$callback = $update["callback_query"]["data"] ?? null;
-$user_id = $update["message"]["from"]["id"] ?? $update["callback_query"]["from"]["id"];
-
-$state_file = "state_$user_id.txt";
-$data_files = [
-    "quiz" => "quiz.json",
-    "savol" => "data.json",
-    "ilm" => "ilm.json",
-    "kunsozi" => "kunsozi.json",
-    "mantiq" => "mantiq.json"
-];
-
-function sendMessage($chat_id, $text, $buttons = null) {
-    $url = "https://api.telegram.org/bot" . $GLOBALS['token'] . "/sendMessage";
-    $data = ["chat_id" => $chat_id, "text" => $text, "parse_mode" => "HTML"];
-    if ($buttons) {
-        $data["reply_markup"] = json_encode(["inline_keyboard" => $buttons]);
-    }
-    file_get_contents($url, false, stream_context_create([
-        "http" => ["method" => "POST", "header" => "Content-Type: application/x-www-form-urlencoded", "content" => http_build_query($data)]
-    ]));
-}
-
-function saveState($user_id, $state) {
-    file_put_contents("state_$user_id.txt", $state);
-}
-function getState($user_id) {
-    return file_exists("state_$user_id.txt") ? file_get_contents("state_$user_id.txt") : null;
-}
-function clearState($user_id) {
-    @unlink("state_$user_id.txt");
-}
-
-function answerCallback($id) {
-    file_get_contents("https://api.telegram.org/bot" . $GLOBALS['token'] . "/answerCallbackQuery?callback_query_id=$id");
-}
+// text_states.php
 
 function loadJson($file) {
     return file_exists($file) ? json_decode(file_get_contents($file), true) : [];
 }
+
 function saveJson($file, $data) {
     file_put_contents($file, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 }
 
-// BOSHLANISHI
 if ($text == "/start") {
-    $menu = [
-        [["text" => "📌 Bugungi Savol", "callback_data" => "bugungi_savol"]],
-        [["text" => "🧪 Quiz", "callback_data" => "start_quiz"]],
-        [["text" => "🧠 Mantiqiy topshiriq", "callback_data" => "mantiq"]],
-        [["text" => "🧾 1 daqiqa ilm", "callback_data" => "ilm"]],
-        [["text" => "💬 Kun so‘zi", "callback_data" => "kunsozi"]],
-        [["text" => "📊 Reyting", "callback_data" => "reyting"]]
+    $buttons = [
+        [
+            ["text" => "🧪 Quiz"], ["text" => "🧠 Mantiq"]
+        ],
+        [
+            ["text" => "📚 Ilm"], ["text" => "📝 Kun so‘zi"]
+        ],
+        [
+            ["text" => "📌 Savol"]
+        ]
     ];
-    sendMessage($chat_id, "🧠 <b>Assalomu alaykum!</b>\nBu — Zakovat Pro. Har kuni bilim va tafakkur bilan yasha!", $menu);
+    sendMessage($chat_id, "Assalomu alaykum! \n<b>Zakovat Pro</b> botiga xush kelibsiz! Tanlang:", $buttons);
+    return;
 }
 
-// ADMIN PANEL
-elseif ($text == "/admin" && $chat_id == $admin_id) {
-    $panel = [
-        [["text" => "➕ Bugungi savol", "callback_data" => "add_savol"]],
-        [["text" => "➕ 1 daqiqa ilm", "callback_data" => "add_ilm"]],
-        [["text" => "➕ Kun so‘zi", "callback_data" => "add_kunsozi"]],
-        [["text" => "➕ Mantiqiy topshiriq", "callback_data" => "add_mantiq"]],
-        [["text" => "➕ Quiz savol", "callback_data" => "add_quiz"]]
+if ($text == "📚 Ilm") {
+    sendMessage($chat_id, "📚 Ilm menyusida hozircha yangi bilimlar tayyorlanmoqda.");
+    return;
+}
+
+if ($text == "🧠 Mantiq") {
+    sendMessage($chat_id, "🧠 Mantiq mashqlari tez orada qo‘shiladi.");
+    return;
+}
+
+if ($text == "📝 Kun so‘zi") {
+    sendMessage($chat_id, "📝 Bugungi kun so‘zi: <b>Mas’uliyat</b> — Harakatda baraka.");
+    return;
+}
+
+if ($text == "📌 Savol") {
+    sendMessage($chat_id, "📌 Bugungi savol: Dunyodagi eng katta okean qaysi?\nA) Atlantika\nB) Hind\nC) Tinch\nD) Arktika");
+    return;
+}
+
+if ($text == "🧪 Quiz") {
+    $all = loadJson("quiz.json");
+    shuffle($all);
+    $questions = array_slice($all, 0, 10);
+
+    $session = [
+        "index" => 0,
+        "score" => 0,
+        "questions" => $questions
     ];
-    sendMessage($chat_id, "👨‍💼 Admin Panel:", $panel);
-}
 
-// Callback qayta ishlash (qisqartirilgan)
-elseif ($callback) {
-    answerCallback($update["callback_query"]["id"]);
-    include "callbacks.php";
-}
+    saveJson("quiz_session_$user_id.json", $session);
 
-// Matnli holatlar
-elseif ($text && getState($user_id)) {
-    include "text_states.php";
+    $q = $questions[0];
+    $buttons = [
+        [
+            ["text" => "A) {$q['variantlar'][0]}", "callback_data" => "quiz_answer_A"],
+            ["text" => "B) {$q['variantlar'][1]}", "callback_data" => "quiz_answer_B"]
+        ],
+        [
+            ["text" => "C) {$q['variantlar'][2]}", "callback_data" => "quiz_answer_C"],
+            ["text" => "D) {$q['variantlar'][3]}", "callback_data" => "quiz_answer_D"]
+        ]
+    ];
+
+    sendMessage($chat_id, "🧪 <b>10 ta savoldan iborat quiz boshlandi!</b>\n\n❓ <b>Savol 1:</b>\n{$q['savol']}", $buttons);
+    return;
 }
