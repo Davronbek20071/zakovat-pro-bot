@@ -10,120 +10,79 @@ $text = $update["message"]["text"] ?? null;
 $callback = $update["callback_query"]["data"] ?? null;
 $user_id = $update["message"]["from"]["id"] ?? $update["callback_query"]["from"]["id"];
 
-// Foydalanuvchi holatini eslab qolish uchun
 $state_file = "state_$user_id.txt";
-$data_file = "data.json";
+$data_files = [
+    "quiz" => "quiz.json",
+    "savol" => "data.json",
+    "ilm" => "ilm.json",
+    "kunsozi" => "kunsozi.json",
+    "mantiq" => "mantiq.json"
+];
 
 function sendMessage($chat_id, $text, $buttons = null) {
     $url = "https://api.telegram.org/bot" . $GLOBALS['token'] . "/sendMessage";
-
-    $data = [
-        "chat_id" => $chat_id,
-        "text" => $text,
-        "parse_mode" => "HTML"
-    ];
-
+    $data = ["chat_id" => $chat_id, "text" => $text, "parse_mode" => "HTML"];
     if ($buttons) {
         $data["reply_markup"] = json_encode(["inline_keyboard" => $buttons]);
     }
-
     file_get_contents($url, false, stream_context_create([
-        "http" => [
-            "method"  => "POST",
-            "header"  => "Content-Type: application/x-www-form-urlencoded",
-            "content" => http_build_query($data)
-        ]
+        "http" => ["method" => "POST", "header" => "Content-Type: application/x-www-form-urlencoded", "content" => http_build_query($data)]
     ]));
 }
 
-function answerCallback($callback_id) {
-    file_get_contents("https://api.telegram.org/bot" . $GLOBALS['token'] . "/answerCallbackQuery?callback_query_id=$callback_id");
+function saveState($user_id, $state) {
+    file_put_contents("state_$user_id.txt", $state);
+}
+function getState($user_id) {
+    return file_exists("state_$user_id.txt") ? file_get_contents("state_$user_id.txt") : null;
+}
+function clearState($user_id) {
+    @unlink("state_$user_id.txt");
 }
 
-// START komandasi
+function answerCallback($id) {
+    file_get_contents("https://api.telegram.org/bot" . $GLOBALS['token'] . "/answerCallbackQuery?callback_query_id=$id");
+}
+
+function loadJson($file) {
+    return file_exists($file) ? json_decode(file_get_contents($file), true) : [];
+}
+function saveJson($file, $data) {
+    file_put_contents($file, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+}
+
+// BOSHLANISHI
 if ($text == "/start") {
     $menu = [
-        [["text" => "📌 Bugungi Savol", "callback_data" => "savol"]],
-        [["text" => "📊 Reyting (demo)", "callback_data" => "reyting"]],
-        [["text" => "👑 Intellekt Klub", "callback_data" => "klub"]]
+        [["text" => "📌 Bugungi Savol", "callback_data" => "bugungi_savol"]],
+        [["text" => "🧪 Quiz", "callback_data" => "start_quiz"]],
+        [["text" => "🧠 Mantiqiy topshiriq", "callback_data" => "mantiq"]],
+        [["text" => "🧾 1 daqiqa ilm", "callback_data" => "ilm"]],
+        [["text" => "💬 Kun so‘zi", "callback_data" => "kunsozi"]],
+        [["text" => "📊 Reyting", "callback_data" => "reyting"]]
     ];
-    sendMessage($chat_id, "🧠 <b>Assalomu alaykum!</b>\nBu — Zakovat Pro! Har kuni sizga ilm, zakovat va tafakkur sovg‘a qilamiz.", $menu);
+    sendMessage($chat_id, "🧠 <b>Assalomu alaykum!</b>\nBu — Zakovat Pro. Har kuni bilim va tafakkur bilan yasha!", $menu);
 }
 
 // ADMIN PANEL
 elseif ($text == "/admin" && $chat_id == $admin_id) {
     $panel = [
-        [["text" => "➕ Savol qo‘shish", "callback_data" => "add_savol"]],
-        [["text" => "📈 Statistika", "callback_data" => "stats"]]
+        [["text" => "➕ Bugungi savol", "callback_data" => "add_savol"]],
+        [["text" => "➕ 1 daqiqa ilm", "callback_data" => "add_ilm"]],
+        [["text" => "➕ Kun so‘zi", "callback_data" => "add_kunsozi"]],
+        [["text" => "➕ Mantiqiy topshiriq", "callback_data" => "add_mantiq"]],
+        [["text" => "➕ Quiz savol", "callback_data" => "add_quiz"]]
     ];
     sendMessage($chat_id, "👨‍💼 Admin Panel:", $panel);
 }
 
-// CALLBACK tugmalar
+// Callback qayta ishlash (qisqartirilgan)
 elseif ($callback) {
-    $callback_id = $update["callback_query"]["id"];
-    answerCallback($callback_id);
-
-    switch ($callback) {
-        case "savol":
-            if (file_exists($data_file)) {
-                $data = json_decode(file_get_contents($data_file), true);
-                file_put_contents($state_file, "awaiting_answer");
-                sendMessage($chat_id, "📌 <b>Savol:</b> {$data['savol']}\n\n✍️ Javobingizni yozing:");
-            } else {
-                sendMessage($chat_id, "⛔ Hozircha savol mavjud emas.");
-            }
-            break;
-
-        case "reyting":
-            sendMessage($chat_id, "📊 Reyting: Hozircha demo rejimda.");
-            break;
-
-        case "klub":
-            sendMessage($chat_id, "👑 Intellekt Klubga hush kelibsiz!");
-            break;
-
-        case "add_savol":
-            file_put_contents($state_file, "awaiting_question");
-            sendMessage($chat_id, "📝 Savolni yuboring (so‘ngra javobni):");
-            break;
-
-        case "stats":
-            sendMessage($chat_id, "📈 Statistika: Demo foydalanuvchi soni: 1");
-            break;
-    }
+    answerCallback($update["callback_query"]["id"]);
+    include "callbacks.php";
 }
 
-// Javobni tekshirish yoki savol yozish jarayoni
-elseif ($text && file_exists($state_file)) {
-    $state = file_get_contents($state_file);
-
-    if ($chat_id == $admin_id && $state == "awaiting_question") {
-        file_put_contents("temp_savol.txt", $text);
-        file_put_contents($state_file, "awaiting_answer_save");
-        sendMessage($chat_id, "✅ Endi to‘g‘ri javobni yuboring:");
-    }
-    elseif ($chat_id == $admin_id && $state == "awaiting_answer_save") {
-        $savol = file_get_contents("temp_savol.txt");
-        $javob = $text;
-        $json = ["savol" => $savol, "javob" => strtolower($javob)];
-        file_put_contents($data_file, json_encode($json));
-        unlink("temp_savol.txt");
-        unlink($state_file);
-        sendMessage($chat_id, "✅ Savol saqlandi!");
-    }
-    elseif ($state == "awaiting_answer") {
-        $user_javob = strtolower(trim($text));
-        $data = json_decode(file_get_contents($data_file), true);
-        $to_gri = strtolower($data["javob"]);
-
-        if ($user_javob == $to_gri) {
-            sendMessage($chat_id, "✅ <b>To‘g‘ri!</b>\nSiz savolga to‘g‘ri javob berdingiz. 👍");
-        } else {
-            sendMessage($chat_id, "❌ <b>Noto‘g‘ri.</b>\nTo‘g‘ri javob: <b>$to_gri</b>");
-        }
-
-        unlink($state_file);
-    }
+// Matnli holatlar
+elseif ($text && getState($user_id)) {
+    include "text_states.php";
 }
-?>
